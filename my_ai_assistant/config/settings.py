@@ -41,3 +41,14 @@ def get_max_data_limit(doctype):
     """Get max records limit for doctype queries"""
     limits = frappe.conf.get("ai_data_limits", {})
     return limits.get(doctype, 1000)
+
+
+def get_settings():
+    """Return all AI settings as a dict for new services."""
+    return {
+        "api_key": get_api_key(),
+        "model": get_ai_model(),
+        "max_tokens": get_max_tokens(),
+        "temperature": get_temperature(),
+        "request_timeout": get_request_timeout(),
+    }

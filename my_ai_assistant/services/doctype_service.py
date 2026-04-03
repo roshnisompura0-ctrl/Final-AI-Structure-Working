@@ -156,18 +156,18 @@ def detect_doctype_from_question(question):
     if gstin_match:
         return "GSTIN", gstin_match.group(1).upper()
 
-    # Document ID patterns
+    # Document ID patterns - include optional company prefix like ACC-SINV-...
     doc_patterns = [
-        (r"\bSINV-[\w-]+\b", "Sales Invoice"),
-        (r"\bPINV-[\w-]+\b", "Purchase Invoice"),
-        (r"\bSO-[\w-]+\b", "Sales Order"),
-        (r"\bPO-[\w-]+\b", "Purchase Order"),
-        (r"\bQUOT-[\w-]+\b", "Quotation"),
-        (r"\bDN-[\w-]+\b", "Delivery Note"),
-        (r"\bPR-[\w-]+\b", "Purchase Receipt"),
-        (r"\bJV-[\w-]+\b", "Journal Entry"),
-        (r"\bPAY-[\w-]+\b", "Payment Entry"),
-        (r"\bHR-EMP-[\w-]+\b", "Employee"),
+        (r"\b(?:ACC-)?SINV-[\w-]+\b", "Sales Invoice"),
+        (r"\b(?:ACC-)?PINV-[\w-]+\b", "Purchase Invoice"),
+        (r"\b(?:ACC-)?SO-[\w-]+\b", "Sales Order"),
+        (r"\b(?:ACC-)?PO-[\w-]+\b", "Purchase Order"),
+        (r"\b(?:ACC-)?QUOT-[\w-]+\b", "Quotation"),
+        (r"\b(?:ACC-)?DN-[\w-]+\b", "Delivery Note"),
+        (r"\b(?:ACC-)?PR-[\w-]+\b", "Purchase Receipt"),
+        (r"\b(?:ACC-)?JV-[\w-]+\b", "Journal Entry"),
+        (r"\b(?:ACC-)?PAY-[\w-]+\b", "Payment Entry"),
+        (r"\b(?:HR-)?EMP-[\w-]+\b", "Employee"),
     ]
 
     for pattern, doctype in doc_patterns:

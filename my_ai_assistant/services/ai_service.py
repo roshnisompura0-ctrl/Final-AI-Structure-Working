@@ -213,6 +213,9 @@ FORMATTING RULES:
 - Format large numbers with commas (e.g., ₹1,25,000)
 - Use bullet points with • symbol for lists
 - Keep responses concise but informative
+- For document links, use ONLY the document ID/name, NEVER append customer/supplier names to the URL
+- Example correct link: /app/sales-invoice/ACC-SINV-2026-00004
+- Example WRONG link: /app/sales-invoice/ACC-SINV-2026-00004 (Customer Name)
 
 ENTITY DATA PRIORITY:
 - When entity_customer_* data exists → use it for customer questions

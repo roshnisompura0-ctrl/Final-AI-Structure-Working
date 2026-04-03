@@ -287,7 +287,7 @@ my_ai_assistant.ChatWidget = class ChatWidget {
         const typing = this.showTyping();
 
         frappe.call({
-            method: 'my_ai_assistant.ai_helper.scan_bill_image',
+            method: 'my_ai_assistant.api.process_document_image_api',
             args: {
                 image_data:   base64,
                 file_name:    fileName,
@@ -375,7 +375,7 @@ my_ai_assistant.ChatWidget = class ChatWidget {
 
     testConnection(showToast = false) {
         frappe.call({
-            method: 'my_ai_assistant.ai_helper.test_connection',
+            method: 'my_ai_assistant.api.test_connection_api',
             callback: function(r) {
                 var statusEl = document.querySelector('.ai-header-status');
                 if (r && r.message && r.message.success) {
@@ -563,13 +563,13 @@ my_ai_assistant.ChatWidget = class ChatWidget {
         const typing = this.showTyping();
 
         const args = {
-            question: question,
-            doctype: '',
+            prompt: question,
+            user: frappe.session.user,
             conversation_history: JSON.stringify(this.conversationHistory.slice(-5))
         };
 
         frappe.call({
-            method: 'my_ai_assistant.ai_helper.ask_ai',
+            method: 'my_ai_assistant.api.get_ai_response',
             args: args,
             callback: (r) => {
                 typing.remove();

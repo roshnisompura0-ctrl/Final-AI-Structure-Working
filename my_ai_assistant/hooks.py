@@ -7,9 +7,9 @@ app_description = "AI Assistant for ERPNext with clean architecture, global sear
 app_email = "ai@skyerp.com"
 app_license = "mit"
 
-# Include CSS/JS assets
-app_include_css = "/assets/my_ai_assistant/css/ai_chat_widget.css"
-app_include_js = "/assets/my_ai_assistant/js/ai_chat_widget.js"
+# Include CSS/JS assets with cache-busting
+app_include_css = "/assets/my_ai_assistant/css/ai_chat_widget.css?v2"
+app_include_js = "/assets/my_ai_assistant/js/ai_chat_widget.js?v2"
 
 # Page fixtures
 fixtures = [
