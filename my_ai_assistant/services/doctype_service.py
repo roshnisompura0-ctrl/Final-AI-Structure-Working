@@ -203,30 +203,68 @@ def detect_doctype_from_question(question):
 
     return best_match if best_score > 0 else None, None
 
+def discover_doctype(query_or_entity):
+	"""
+	Simple doctype discovery - tries to match a name/term to a doctype.
+	Returns doctype name if found, None otherwise.
+	"""
+	if not query_or_entity:
+		return None
+	
+	q = query_or_entity.lower().strip()
+	
+	# Direct keyword mapping
+	doctype_keywords = {
+		"Customer": ["customer", "client", "buyer"],
+		"Supplier": ["supplier", "vendor", "seller"],
+		"Item": ["item", "product", "goods", "material"],
+		"Employee": ["employee", "staff", "worker"],
+		"Lead": ["lead", "prospect"],
+		"Sales Invoice": ["sales invoice", "invoice", "bill"],
+		"Purchase Invoice": ["purchase invoice", "vendor bill"],
+		"Sales Order": ["sales order", "customer order"],
+		"Purchase Order": ["purchase order", "po"],
+		"Quotation": ["quotation", "quote", "estimate"],
+		"Project": ["project"],
+		"Task": ["task"],
+		"Opportunity": ["opportunity"],
+		"Warehouse": ["warehouse"],
+		"Account": ["account", "gl"],
+	}
+	
+	for doctype, keywords in doctype_keywords.items():
+		if any(kw in q for kw in keywords):
+			return doctype
+	
+	return None
+
 def get_all_entity_names(doctype, limit=2000):
-    """
-    Get all names for a doctype with display names
-    Used for entity extraction
-    """
-    try:
-        # Determine name field
-        meta = get_meta(doctype)
-        name_field = meta.name_field or "name"
+	"""
+	Get all names for a doctype with display names
+	Used for entity extraction
+	"""
+	try:
+		# Determine name field
+		meta = get_meta(doctype)
+		name_field = meta.name_field or "name"
 
-        if doctype == "Customer":
-            fields = ["name", "customer_name as display"]
-        elif doctype == "Supplier":
-            fields = ["name", "supplier_name as display"]
-        elif doctype == "Item":
-            fields = ["name", "item_name as display"]
-        elif doctype == "Employee":
-            fields = ["name", "employee_name as display"]
-        elif doctype == "Lead":
-            fields = ["name", "lead_name as display"]
-        else:
-            fields = ["name", f"{name_field} as display"]
+		if doctype == "Customer":
+			fields = ["name", "customer_name as display"]
+		elif doctype == "Supplier":
+			fields = ["name", "supplier_name as display"]
+		elif doctype == "Item":
+			fields = ["name", "item_name as display"]
+		elif doctype == "Employee":
+			fields = ["name", "employee_name as display"]
+		elif doctype == "Lead":
+			fields = ["name", "lead_name as display"]
+		else:
+			fields = ["name", f"{name_field} as display"]
 
-        return frappe.get_all(doctype, fields=fields, limit=limit, ignore_permissions=True)
-    except Exception as e:
-        frappe.log_error(f"Get entity names error for {doctype}: {str(e)}")
-        return []
+		return frappe.get_all(doctype, fields=fields, limit=limit, ignore_permissions=True)
+	except Exception as e:
+		frappe.log_error(f"Get entity names error for {doctype}: {str(e)}")
+		return []
+
+# Alias for API compatibility
+get_all_doctypes = discover_all_doctypes

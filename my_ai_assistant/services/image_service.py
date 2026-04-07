@@ -33,12 +33,16 @@ Sales Order
 Purchase Order
 Quotation
 
-Rules:
-- Heading says SALES ORDER or SO- or Order Confirmation → Sales Order
-- Heading says PURCHASE ORDER or PO- → Purchase Order
-- Heading says QUOTATION or QUOTE or ESTIMATE or PROPOSAL → Quotation
-- Bill/invoice received FROM a vendor → Purchase Invoice
-- Invoice issued TO a customer → Sales Invoice"""
+Classification Rules (apply in order):
+1. Heading says PURCHASE ORDER or PO- → Purchase Order
+2. Heading says SALES ORDER or SO- or Order Confirmation → Sales Order  
+3. Heading says QUOTATION or QUOTE or ESTIMATE or PROPOSAL → Quotation
+4. Heading contains PURCHASE or shows "BILL FROM" vendor/supplier → Purchase Invoice
+5. Heading contains SALES or shows "BILL TO" customer → Sales Invoice
+6. You are receiving this FROM a vendor/supplier → Purchase Invoice
+7. You are issuing this TO a customer → Sales Invoice
+
+IMPORTANT: If document shows "PURCHASE" anywhere in header/title, it is Purchase Invoice, NOT Sales Invoice."""
 
 _ITEMS = '  "items": [{"item_name": "string", "description": "string or null", "qty": 0, "rate": 0, "amount": 0, "uom": "Nos"}]'
 _TAXES = '  "taxes": [{"description": "string", "rate": 0, "amount": 0}]'
@@ -264,3 +268,6 @@ def process_document_image(image_data, document_type="auto"):
 		file_type="image/jpeg",
 		document_type=document_type,
 	)
+
+# Alias for api.py
+process_image = process_document_image

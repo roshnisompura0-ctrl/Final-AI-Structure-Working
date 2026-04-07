@@ -134,6 +134,7 @@ IMPORTANT INSTRUCTIONS:
 4. Format currency with ₹ symbol
 5. Be concise but comprehensive
 6. If data is not available, say so clearly
+7. When asked for a LIST of customers/suppliers/items: Extract the "name" or "customer_name"/"supplier_name"/"item_name" field from the data array and return {{"type": "list", "items": ["Name1", "Name2"], "doctype": "Customer"}}
 
 Respond with ONLY valid JSON matching the format rules above."""
 
@@ -198,11 +199,16 @@ RESPONSE FORMAT - Return ONLY valid JSON:
 For answers and information:
 {"type": "text", "message": "Your HTML-formatted answer here"}
 
-For creating new records:
-{"type": "create", "doctype": "Customer", "data": {"field": "value"}}
+For listing records (customers, suppliers, items, etc.):
+{"type": "list", "message": "List of Customers", "items": ["Customer1", "Customer2"], "doctype": "Customer"}
 
-For listing records:
-{"type": "list", "message": "Header", "items": ["name1", "name2"], "doctype": "Customer"}
+IMPORTANT: When listing, ALWAYS use type="list" with:
+- message: A header like "List of Customers" 
+- items: Array of names ONLY (not objects)
+- doctype: The exact doctype name
+
+For creating new records:
+{"type": "create", "doctype": "Customer", "data": {"customer_name": "Gaytri"}}
 
 For errors or clarifications:
 {"type": "text", "message": "Explanation of what information is needed"}

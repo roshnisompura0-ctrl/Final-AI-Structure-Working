@@ -200,3 +200,189 @@ def get_business_overview():
     overview["quotations"] = safe_count("Quotation")
 
     return overview
+
+
+# Legacy function aliases for assistant.py compatibility
+def get_doctype_count(doctype, filters=None):
+    """Get count of documents for a doctype"""
+    return safe_count(doctype, filters)
+
+def get_document(doctype, name):
+    """Get a single document by name"""
+    return safe_get_full_doc(doctype, name)
+
+def get_doctype_list(doctype, limit=50):
+    """Get list of documents for a doctype"""
+    return safe_get_list(doctype, limit=limit)
+
+# === All legacy functions for assistant.py compatibility ===
+
+def get_all_customers(limit=50):
+    return safe_get_list("Customer", ["name", "customer_name"], {"disabled": 0}, limit)
+
+def get_all_suppliers(limit=50):
+    return safe_get_list("Supplier", ["name", "supplier_name"], {"disabled": 0}, limit)
+
+def get_all_items(limit=50):
+    return safe_get_list("Item", ["name", "item_name", "item_group"], {"disabled": 0}, limit)
+
+def get_all_employees(limit=50):
+    return safe_get_list("Employee", ["name", "employee_name"], {"status": "Active"}, limit)
+
+def get_leads(limit=50):
+    return safe_get_list("Lead", ["name", "lead_name", "status"], limit=limit)
+
+def get_sales_orders(filters=None, limit=50):
+    return safe_get_list("Sales Order", ["name", "customer", "transaction_date", "status", "grand_total"], filters, limit)
+
+def get_purchase_orders(filters=None, limit=50):
+    return safe_get_list("Purchase Order", ["name", "supplier", "transaction_date", "status", "grand_total"], filters, limit)
+
+def get_quotations(limit=50):
+    return safe_get_list("Quotation", ["name", "customer", "transaction_date", "status", "grand_total"], limit=limit)
+
+def get_delivery_notes(limit=50):
+    return safe_get_list("Delivery Note", ["name", "customer", "posting_date", "status"], limit=limit)
+
+def get_warehouses():
+    return safe_get_list("Warehouse", ["name", "warehouse_name", "is_group"])
+
+def get_accounts(limit=100):
+    return safe_get_list("Account", ["name", "account_name", "account_type", "root_type"], limit=limit)
+
+def get_sales_invoices(filters=None, limit=50):
+    return safe_get_list("Sales Invoice", ["name", "customer", "posting_date", "status", "grand_total", "outstanding_amount"], filters, limit)
+
+def get_purchase_invoices(filters=None, limit=50):
+    return safe_get_list("Purchase Invoice", ["name", "supplier", "posting_date", "status", "grand_total", "outstanding_amount"], filters, limit)
+
+def get_overdue_invoices(party_type="Customer", limit=50):
+    invoices = safe_get_list("Sales Invoice" if party_type == "Customer" else "Purchase Invoice",
+        ["name", "customer" if party_type == "Customer" else "supplier", "posting_date", "due_date", "outstanding_amount"],
+        {"status": "Overdue", "docstatus": 1}, limit)
+    return invoices
+
+def get_outstanding_invoices(party_type="Customer", party=None, limit=50):
+    filters = {"docstatus": 1, "outstanding_amount": [">", 0]}
+    if party:
+        filters["customer" if party_type == "Customer" else "supplier"] = ["like", f"%{party}%"]
+    doctype = "Sales Invoice" if party_type == "Customer" else "Purchase Invoice"
+    return safe_get_list(doctype, ["name", "customer" if party_type == "Customer" else "supplier", "posting_date", "outstanding_amount"], filters, limit)
+
+def get_revenue_summary(period="this_month"):
+    from frappe.utils import today, get_first_day, get_last_day
+    t = today()
+    if period == "this_month":
+        start = get_first_day(t)
+        end = get_last_day(t)
+    elif period == "last_month":
+        from frappe.utils import add_months
+        last_month = add_months(t, -1)
+        start = get_first_day(last_month)
+        end = get_last_day(last_month)
+    elif period == "this_year":
+        start = t[:4] + "-01-01"
+        end = t[:4] + "-12-31"
+    else:
+        start = get_first_day(t)
+        end = get_last_day(t)
+    invoices = safe_get_list("Sales Invoice", ["grand_total", "outstanding_amount"], {"docstatus": 1, "posting_date": ["between", [start, end]]}, 10000)
+    total = sum(float(i.get("grand_total", 0)) for i in invoices)
+    outstanding = sum(float(i.get("outstanding_amount", 0)) for i in invoices)
+    return {
+        "total_revenue": total,
+        "invoice_count": len(invoices),
+        "avg_invoice_value": total / len(invoices) if invoices else 0,
+        "total_outstanding": outstanding
+    }
+
+def get_purchase_summary(period="this_month"):
+    return {"total_purchases": 0, "message": "Not implemented"}
+
+def get_top_customers(limit=10, period=None):
+    from frappe.utils import today, get_first_day, add_months
+    t = today()
+    if period == "last_month":
+        start = get_first_day(add_months(t, -1))
+    else:
+        start = get_first_day(t)
+    data = frappe.db.sql("""
+        SELECT customer, SUM(grand_total) as total_revenue, COUNT(*) as invoice_count
+        FROM `tabSales Invoice`
+        WHERE docstatus = 1 AND posting_date >= %s
+        GROUP BY customer
+        ORDER BY total_revenue DESC
+        LIMIT %s
+    """, (start, limit), as_dict=True)
+    for d in data:
+        d["customer_name"] = frappe.db.get_value("Customer", d["customer"], "customer_name")
+    return data
+
+def get_top_suppliers(limit=10, period=None):
+    return []
+
+def get_top_selling_items(limit=10, period=None):
+    from frappe.utils import today, get_first_day, add_months
+    t = today()
+    if period == "last_month":
+        start = get_first_day(add_months(t, -1))
+    else:
+        start = get_first_day(t)
+    data = frappe.db.sql("""
+        SELECT item_code, SUM(amount) as total_amount, SUM(qty) as total_qty
+        FROM `tabSales Invoice Item`
+        WHERE parent IN (SELECT name FROM `tabSales Invoice` WHERE docstatus = 1 AND posting_date >= %s)
+        GROUP BY item_code
+        ORDER BY total_amount DESC
+        LIMIT %s
+    """, (start, limit), as_dict=True)
+    for d in data:
+        d["item_name"] = frappe.db.get_value("Item", d["item_code"], "item_name")
+    return data
+
+def get_stock_balance(item_code=None, limit=100):
+    if item_code:
+        return frappe.db.sql("""
+            SELECT item_code, warehouse, actual_qty, reserved_qty, projected_qty
+            FROM `tabBin` WHERE item_code = %s
+        """, item_code, as_dict=True)
+    return safe_get_list("Bin", ["item_code", "warehouse", "actual_qty", "reserved_qty", "projected_qty"], limit=limit)
+
+def get_items_below_reorder(limit=50):
+    return frappe.db.sql("""
+        SELECT i.name as item_code, i.item_name, i.re_order_level,
+               SUM(b.actual_qty) as actual_qty
+        FROM `tabItem` i
+        LEFT JOIN `tabBin` b ON i.name = b.item_code
+        WHERE i.re_order_level > 0
+        GROUP BY i.name
+        HAVING actual_qty < i.re_order_level OR actual_qty IS NULL
+        LIMIT %s
+    """, limit, as_dict=True)
+
+def get_stock_ledger(item_code, limit=20):
+    return frappe.db.sql("""
+        SELECT posting_date, warehouse, actual_qty, valuation_rate, stock_value
+        FROM `tabStock Ledger Entry`
+        WHERE item_code = %s
+        ORDER BY posting_date DESC
+        LIMIT %s
+    """, (item_code, limit), as_dict=True)
+
+def get_salary_slips(limit=50):
+    return safe_get_list("Salary Slip", ["name", "employee", "employee_name", "start_date", "end_date", "net_pay", "status"], limit=limit)
+
+def get_leave_applications(limit=50):
+    return safe_get_list("Leave Application", ["name", "employee", "employee_name", "leave_type", "from_date", "to_date", "status"], limit=limit)
+
+def get_opportunities(limit=50):
+    return safe_get_list("Opportunity", ["name", "customer_name", "opportunity_type", "status", "expected_closing"], limit=limit)
+
+def get_projects(limit=50):
+    return safe_get_list("Project", ["name", "project_name", "status", "expected_start_date", "expected_end_date"], limit=limit)
+
+def get_tasks(limit=50):
+    return safe_get_list("Task", ["name", "subject", "project", "status", "priority", "exp_start_date"], limit=limit)
+
+def get_payment_entries(limit=50):
+    return safe_get_list("Payment Entry", ["name", "party_type", "party", "posting_date", "paid_amount", "status"], limit=limit)

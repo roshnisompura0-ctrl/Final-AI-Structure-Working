@@ -448,17 +448,39 @@ my_ai_assistant.ChatWidget = class ChatWidget {
                     items.forEach((item, idx) => {
                         const isLast = idx === items.length - 1;
                         const borderStyle = isLast ? '' : 'border-bottom:1px solid #F3F4F6;';
+                        // Extract name from object
+                        let itemName = '';
+                        let itemId = '';
+                        if (typeof item === 'object' && item !== null) {
+                            // Use _display_name from API if available, otherwise try common fields
+                            itemName = item._display_name || 
+                                       item.customer_name || 
+                                       item.supplier_name || 
+                                       item.item_name || 
+                                       item.employee_name || 
+                                       item.name || 
+                                       item.title || 
+                                       'Unknown';
+                            itemId = item.name || item.id || itemId || itemName;
+                        } else {
+                            itemName = String(item);
+                            itemId = String(item);
+                        }
+                        // Ensure we have strings
+                        itemName = String(itemName);
+                        itemId = String(itemId);
+                        
                         if (dt) {
-                            const route = dt + '/' + item;
+                            const route = dt + '/' + encodeURIComponent(itemId);
                             html += `<div style="padding:10px 14px;${borderStyle}font-size:13px;transition:background 0.2s;">
                                 <a href="/app/${route}"
                                    onclick="frappe.set_route('${route}');return false;"
-                                   style="color:#5B4FE9;text-decoration:none;font-weight:500;">
-                                    → ${item}
+                                   style="color:#5B4FE9;text-decoration:none;font-weight:500;display:flex;align-items:center;gap:6px;">
+                                    <span>→</span><span>${this.escapeHtml(itemName)}</span>
                                 </a>
                             </div>`;
                         } else {
-                            html += `<div style="padding:10px 14px;${borderStyle}font-size:13px;color:#374151;">• ${item}</div>`;
+                            html += `<div style="padding:10px 14px;${borderStyle}font-size:13px;color:#374151;">• ${this.escapeHtml(itemName)}</div>`;
                         }
                     });
                     html += '</div>';

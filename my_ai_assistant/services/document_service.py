@@ -113,6 +113,63 @@ def _resolve_party(party_name, party_doctype):
 		frappe.log_error(f"[AI] Could not auto-create {party_doctype} '{clean_name}': {e}", "AI Document Service")
 		return clean_name
 
+def _get_valid_uom(uom_name):
+	"""Get a valid UOM from database, fallback to 'Nos' if invalid."""
+	if not uom_name:
+		return "Nos"
+	
+	# Common variations that might be extracted
+	uom_mapping = {
+		"no": "Nos",
+		"nos": "Nos",
+		"no.": "Nos",
+		"no.s": "Nos",
+		"number": "Nos",
+		"numbers": "Nos",
+		"pc": "Nos",
+		"pcs": "Nos",
+		"piece": "Nos",
+		"pieces": "Nos",
+		"ea": "Nos",
+		"each": "Nos",
+		"kg": "Kg",
+		"kgs": "Kg",
+		"kilogram": "Kg",
+		"kilograms": "Kg",
+		"m": "Meter",
+		"meter": "Meter",
+		"meters": "Meter",
+		"ft": "Foot",
+		"foot": "Foot",
+		"feet": "Foot",
+		"box": "Box",
+		"boxes": "Box",
+		"set": "Set",
+		"sets": "Set",
+		"pack": "Pack",
+		"packs": "Pack",
+		"lot": "Nos",
+		"unit": "Nos",
+		"units": "Nos",
+	}
+	
+	# Normalize the UOM name
+	uom_lower = str(uom_name).strip().lower()
+	uom_normalized = uom_mapping.get(uom_lower, uom_name)
+	
+	# Check if it exists in database
+	if frappe.db.exists("UOM", uom_normalized):
+		return uom_normalized
+	
+	# Try case-insensitive lookup
+	existing = frappe.db.get_value("UOM", {"name": ["like", f"%{uom_normalized}%"]}, "name")
+	if existing:
+		return existing
+	
+	# Fallback to Nos
+	return "Nos"
+
+
 def _build_items(raw_items):
 	if not raw_items or not isinstance(raw_items, list):
 		return [{"item_code": "Scanned Item", "item_name": "Scanned Item", "description": "Auto-created from scan", "qty": 1, "rate": 0, "amount": 0, "uom": "Nos", "conversion_factor": 1}]
@@ -129,7 +186,7 @@ def _build_items(raw_items):
 			"qty": qty,
 			"rate": rate,
 			"amount": amount,
-			"uom": it.get("uom") or "Nos",
+			"uom": _get_valid_uom(it.get("uom")),
 			"conversion_factor": 1,
 		})
 	return rows
@@ -243,27 +300,139 @@ def _create_quotation(data):
 	frappe.db.commit()
 	return {"doctype": "Quotation", "name": doc.name, "url": f"/app/quotation/{doc.name}", "grand_total": doc.grand_total, "party_name": doc.party_name}
 
+
+def _create_customer(data):
+	"""Create Customer from chat command."""
+	customer_name = data.get("customer_name") or data.get("name") or data.get("party_name")
+	if not customer_name:
+		return {"type": "text", "success": False, "message": "Customer name is required."}
+	
+	# Check if already exists
+	if frappe.db.exists("Customer", customer_name):
+		return {"type": "text", "success": False, "message": f"Customer '{customer_name}' already exists."}
+	
+	# Create customer
+	doc = frappe.get_doc({
+		"doctype": "Customer",
+		"customer_name": customer_name,
+		"customer_type": data.get("customer_type") or "Individual",
+		"customer_group": data.get("customer_group") or "All Customer Groups",
+		"territory": data.get("territory") or "All Territories",
+	})
+	doc.flags.ignore_mandatory = True
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	
+	# Return HTML formatted response with link
+	return {
+		"type": "text",
+		"success": True,
+		"message": f'✅ Customer created: <a href="/app/customer/{doc.name}"><b>{doc.name}</b></a>'
+	}
+
+
+def _create_supplier(data):
+	"""Create Supplier from chat command."""
+	supplier_name = data.get("supplier_name") or data.get("name") or data.get("party_name")
+	if not supplier_name:
+		return {"type": "text", "success": False, "message": "Supplier name is required."}
+	
+	# Check if already exists
+	if frappe.db.exists("Supplier", supplier_name):
+		return {"type": "text", "success": False, "message": f"Supplier '{supplier_name}' already exists."}
+	
+	# Create supplier
+	doc = frappe.get_doc({
+		"doctype": "Supplier",
+		"supplier_name": supplier_name,
+		"supplier_type": data.get("supplier_type") or "Individual",
+		"supplier_group": data.get("supplier_group") or "All Supplier Groups",
+	})
+	doc.flags.ignore_mandatory = True
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	
+	# Return HTML formatted response with link
+	return {
+		"type": "text",
+		"success": True,
+		"message": f'✅ Supplier created: <a href="/app/supplier/{doc.name}"><b>{doc.name}</b></a>'
+	}
+
+
+def _create_item(data):
+	"""Create Item from chat command."""
+	item_name = data.get("item_name") or data.get("name") or data.get("description")
+	if not item_name:
+		return {"type": "text", "success": False, "message": "Item name is required."}
+	
+	# Generate item_code from name
+	import re
+	item_code = re.sub(r'[^a-zA-Z0-9\s]', '', item_name).strip().upper().replace(' ', '-')
+	if not item_code:
+		item_code = "ITEM-" + str(frappe.utils.now_int())[-6:]
+	
+	# Check if already exists
+	if frappe.db.exists("Item", item_code):
+		return {"type": "text", "success": False, "message": f"Item '{item_code}' already exists."}
+	
+	# Create item
+	doc = frappe.get_doc({
+		"doctype": "Item",
+		"item_code": item_code,
+		"item_name": item_name,
+		"item_group": data.get("item_group") or "All Item Groups",
+		"stock_uom": data.get("stock_uom") or "Nos",
+		"is_stock_item": 0,
+		"is_purchase_item": 1,
+		"is_sales_item": 1,
+	})
+	doc.flags.ignore_mandatory = True
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	
+	# Return HTML formatted response with link
+	return {
+		"type": "text",
+		"success": True,
+		"message": f'✅ Item created: <a href="/app/item/{doc.name}"><b>{doc.name}</b></a>'
+	}
+
+
 _CREATORS = {
 	"Sales Invoice": _create_sales_invoice,
 	"Purchase Invoice": _create_purchase_invoice,
 	"Sales Order": _create_sales_order,
 	"Purchase Order": _create_purchase_order,
 	"Quotation": _create_quotation,
+	"Customer": _create_customer,
+	"Supplier": _create_supplier,
+	"Item": _create_item,
 }
 
 def create_document_from_extraction(doctype, extracted_data):
 	"""Main creation function — called by api.py."""
 	creator = _CREATORS.get(doctype)
 	if not creator:
-		return {"success": False, "message": f"Unsupported doctype '{doctype}'."}
+		return {"type": "text", "success": False, "message": f"Unsupported doctype '{doctype}'."}
 	try:
 		result = creator(extracted_data)
-		result["success"] = True
-		result["message"] = f"{doctype} draft created: {result['name']}"
-		return result
+		# If result already has type="text", it's a formatted response (new format for Customer/Supplier/Item)
+		if result.get("type") == "text":
+			return result
+		# For transaction docs (Sales Invoice, Purchase Invoice, etc), return formatted link
+		doc_name = result.get('name', 'Unknown')
+		doctype_slug = doctype.lower().replace(' ', '-')
+		return {
+			"type": "text",
+			"success": True,
+			"name": doc_name,
+			"doctype": doctype,
+			"message": f'✅ {doctype} draft created: <a href="/app/{doctype_slug}/{doc_name}"><b>{doc_name}</b></a>'
+		}
 	except Exception as e:
 		frappe.log_error(f"[AI] Failed to create {doctype}: {e}", "AI Document Service")
-		return {"success": False, "message": f"Failed to create {doctype}: {str(e)}"}
+		return {"type": "text", "success": False, "message": f"Failed to create {doctype}: {str(e)}"}
 
 # Backward-compatibility alias — assistant.py imports this name
 def create_document(doctype, data):

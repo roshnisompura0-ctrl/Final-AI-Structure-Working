@@ -111,3 +111,114 @@ def get_display_name(doctype, name):
         return name
     except:
         return name
+
+
+# Legacy Intent Extraction (for assistant.py compatibility)
+import re
+
+def extract_intent(query: str) -> str:
+    """Match a natural language query to an intent string."""
+    q = query.lower().strip()
+
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\bcustomer", q):
+        return "count_customers"
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\bsupplier", q):
+        return "count_suppliers"
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\b(item|product)", q):
+        return "count_items"
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\bemployee", q):
+        return "count_employees"
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\b(invoice|bill)", q):
+        return "count_sales_invoices"
+    if re.search(r"\b(how many|count|number of|total|no\.?\s*of)\b.*\border", q):
+        return "count_orders"
+
+    if re.search(r"\b(customer|customers)\b", q):
+        return "list_customers"
+    if re.search(r"\b(supplier|suppliers)\b", q):
+        return "list_suppliers"
+    if re.search(r"\b(item|items|product|products)\b", q):
+        return "list_items"
+    if re.search(r"\b(employee|employees|staff|worker)\b", q):
+        return "list_employees"
+    if re.search(r"\b(lead|leads)\b", q):
+        return "list_leads"
+    if re.search(r"\border(s)?\b", q):
+        return "list_purchase_orders" if re.search(r"\bpurchase\b", q) else "list_orders"
+    if re.search(r"\bquotation(s)?\b", q):
+        return "list_quotations"
+    if re.search(r"\bdelivery note(s)?\b", q):
+        return "list_delivery_notes"
+    if re.search(r"\bwarehouse(s)?\b", q):
+        return "list_warehouses"
+    if re.search(r"\baccount(s)?\b", q):
+        return "list_accounts"
+    if re.search(r"\bopportunit(y|ies)\b", q):
+        return "list_opportunities"
+    if re.search(r"\bproject(s)?\b", q):
+        return "list_projects"
+    if re.search(r"\btask(s)?\b", q):
+        return "list_tasks"
+
+    if re.search(r"\b(invoice|invoices|bill|bills)\b", q):
+        if re.search(r"\b(overdue|late|unpaid)\b", q):
+            return "overdue_invoices"
+        if re.search(r"\b(outstanding|pending|due)\b", q):
+            return "outstanding_invoices"
+        return "list_purchase_invoices" if re.search(r"\b(purchase|supplier)\b", q) else "list_sales_invoices"
+
+    if re.search(r"\b(revenue|sales|income|earning)\b", q):
+        if re.search(r"\b(year|annual|yearly)\b", q):
+            return "revenue_this_year"
+        if re.search(r"\blast month\b", q):
+            return "revenue_last_month"
+        return "revenue_this_month"
+    if re.search(r"\btop customer(s)?\b", q):
+        return "top_customers"
+    if re.search(r"\btop item(s)?\b", q):
+        return "top_items"
+
+    if re.search(r"\b(stock|inventory|warehouse)\b", q):
+        return "low_stock" if re.search(r"\b(low|out|reorder|below)\b", q) else "stock_balance"
+
+    return "unknown"
+
+def extract_period(query: str) -> str:
+    q = query.lower()
+    if "last month" in q: return "last_month"
+    if "last year" in q: return "last_year"
+    if "this year" in q or "current year" in q or "annual" in q or "yearly" in q:
+        return "this_year"
+    if "this quarter" in q or "current quarter" in q: return "this_quarter"
+    if "this month" in q or "current month" in q: return "this_month"
+    return "this_month"
+
+def extract_limit(query: str, default: int = 50) -> int:
+    match = re.search(r"\b(?:top|first|show|last|limit)\s+(\d+)\b", query, re.IGNORECASE)
+    if match:
+        return min(int(match.group(1)), 500)
+    match = re.search(r"\b(\d+)\s+(?:customer|supplier|item|invoice|order|employee)\b", query, re.IGNORECASE)
+    if match:
+        return min(int(match.group(1)), 500)
+    return default
+
+def extract_entity_name(query: str) -> str | None:
+    doc_id_pattern = re.compile(r"\b([A-Z]{2,10}-\d{4}-\d{4,6}|[A-Z]{2,10}-\d{5,})\b")
+    match = doc_id_pattern.search(query.upper())
+    if match:
+        return match.group(1)
+    return None
+
+def extract_party_name(query: str) -> str | None:
+    patterns = [
+        r"(?:for|of|by|from|customer|supplier)\s+([A-Z][a-zA-Z\s&.',-]{2,40})",
+        r"([A-Z][a-zA-Z\s&.',-]{2,40})'s\s+(?:invoice|order|bill|payment|balance)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, query, re.IGNORECASE)
+        if match:
+            candidate = match.group(1).strip()
+            stop_words = {"customer", "supplier", "item", "invoice", "order", "all", "the", "this", "that", "month", "year"}
+            if candidate.lower() not in stop_words and len(candidate) > 2:
+                return candidate
+    return None
