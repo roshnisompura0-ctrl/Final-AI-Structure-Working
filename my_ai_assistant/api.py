@@ -131,6 +131,12 @@ def _create_document_from_extracted_data(doctype, data):
     Returns {"success": True/False, "name": doc_name, "message": str}
     """
     try:
+        # Special handling for Visiting Card - pass data directly to document service
+        if doctype == "Visiting Card":
+            from my_ai_assistant.services.document_service import create_document
+            result = create_document(doctype, data)
+            return result
+        
         doc_data = {}
         
         # Map common fields based on doctype
@@ -373,16 +379,18 @@ def process_document_image_api(image_data: str, document_type: str = "auto",
                 create_result = _create_document_from_extracted_data(doctype, extracted_data)
                 if create_result.get("success"):
                     doc_name = create_result.get("name")
+                    # For Visiting Card, the actual doctype created is Customer
+                    link_doctype = create_result.get("doctype") or doctype
                     # Frappe set_route needs 'Form' prefix for document editing
                     return {
                         "type": "success",
                         "success": True,
                         "created": True,
                         "created_doc_name": doc_name,
-                        "doctype": doctype,
+                        "doctype": link_doctype,
                         "name": doc_name,
-                        "link": f"/app/Form/{doctype}/{doc_name}",
-                        "message": f"✅ Created {doctype} from '{file_name or 'file'}'",
+                        "link": f"/app/Form/{link_doctype}/{doc_name}",
+                        "message": f"✅ Created {link_doctype} from '{file_name or 'file'}'",
                         "extracted_data": extracted_data,
                         "filename": file_name
                     }

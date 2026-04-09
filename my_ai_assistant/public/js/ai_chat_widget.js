@@ -96,8 +96,19 @@ my_ai_assistant.ChatWidget = class ChatWidget {
                 </div>
 
                 <div id="ai-chat-input-area">
+                    <!-- Camera capture button -->
+                    <button data-ai-camera title="Capture photo of a document" style="
+                        flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;
+                        background:linear-gradient(135deg,#10B981,#059669);
+                        color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;
+                        transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 2px 6px rgba(16,185,129,0.4);
+                    ">
+                        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:white">
+                            <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.5.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.63c-.04.34-.07.67-.07 1 0 .33.03.66.07.97l-2.11 1.63c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.63z"/>
+                        </svg>
+                    </button>
                     <!-- Upload bill button -->
-                    <button id="ai-upload-bill-btn" title="Upload bill image to auto-create invoice" style="
+                    <button id="ai-upload-bill-btn" data-ai-upload title="Upload image or PDF" style="
                         flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;
                         background:linear-gradient(135deg,#7C3AED,#6D28D9);
                         color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;
@@ -137,6 +148,62 @@ my_ai_assistant.ChatWidget = class ChatWidget {
         this.selectedBillType = 'auto';
         this.botSVG        = botSVG;
         this.userInitials  = userInitials;
+
+        // Initialize camera capture module
+        this._initCameraCapture();
+    }
+
+    _initCameraCapture() {
+        var self = this;
+        // Load camera capture script if not already loaded
+        if (!window.AICameraCapture) {
+            frappe.require('/assets/my_ai_assistant/js/camera_capture.js', function() {
+                if (window.AICameraCapture) {
+                    window.AICameraCapture.init({
+                        onResult: function(data, fileName) {
+                            self._handleCameraResult(data, fileName);
+                        },
+                        onStatus: function(msg) {}
+                    });
+                }
+            });
+        } else {
+            window.AICameraCapture.init({
+                onResult: function(data, fileName) {
+                    self._handleCameraResult(data, fileName);
+                },
+                onStatus: function(msg) {}
+            });
+        }
+        window.__aiChatWidget = this;
+    }
+
+    _handleCameraResult(data, fileName) {
+        if (!data) {
+            this.appendAIMsg({ type: 'error', message: "❌ No response received from the scanner. Please try again." });
+            return;
+        }
+
+        var type = data.type || "text";
+
+        if (type === "success") {
+            var docName = data.name || "";
+            var doctype = data.doctype || "Document";
+            var link = data.link || "";
+            var message = data.message || ("✅ Created " + doctype + " <b>" + docName + "</b>");
+
+            this.appendAIMsg({
+                type: 'success',
+                message: message,
+                link: link,
+                doctype: doctype,
+                name: docName
+            });
+        } else if (type === "error") {
+            this.appendAIMsg({ type: 'error', message: "❌ " + (data.message || "Scan failed. Try a clearer photo.") });
+        } else {
+            this.appendAIMsg({ type: 'info', message: data.message || JSON.stringify(data) });
+        }
     }
 
     bind_events() {

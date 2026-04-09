@@ -399,6 +399,146 @@ def _create_item(data):
 	}
 
 
+def _create_customer_from_visiting_card(data):
+	"""Create Customer from visiting card data with full contact information."""
+	# Get customer name - use full_name or combine first_name + last_name or company_name
+	customer_name = data.get("full_name") or data.get("customer_name")
+	if not customer_name and (data.get("first_name") or data.get("last_name")):
+		customer_name = f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
+	if not customer_name:
+		customer_name = data.get("company_name")
+	if not customer_name:
+		return {"type": "text", "success": False, "message": "Customer name is required - could not extract from visiting card."}
+	
+	# Truncate customer name if too long (ERPNext limit is usually 140 chars)
+	customer_name = customer_name[:140]
+	
+	# Check if already exists by name
+	existing = frappe.db.get_value("Customer", {"customer_name": customer_name}, "name")
+	if existing:
+		# Return the existing customer with a link instead of failing
+		return {
+			"type": "text",
+			"success": True,
+			"name": existing,
+			"doctype": "Customer",
+			"message": f'ℹ️ Customer already exists: <a href="/app/customer/{existing}"><b>{customer_name}</b></a>'
+		}
+	
+	# Prepare customer data
+	customer_data = {
+		"doctype": "Customer",
+		"customer_name": customer_name,
+		"customer_type": "Individual" if data.get("full_name") or data.get("first_name") else "Company",
+		"customer_group": "All Customer Groups",
+		"territory": "All Territories",
+	}
+	
+	# Add GSTIN if present
+	if data.get("gstin"):
+		try:
+			customer_data["gstin"] = data.get("gstin")
+		except Exception:
+			pass
+	
+	# Create customer
+	doc = frappe.get_doc(customer_data)
+	doc.flags.ignore_mandatory = True
+	doc.insert(ignore_permissions=True)
+	
+	# Create contact with all the visiting card details
+	contact_data = {
+		"doctype": "Contact",
+		"first_name": data.get("first_name") or data.get("full_name") or customer_name,
+		"last_name": data.get("last_name") or "",
+		"company_name": data.get("company_name") or "",
+		"designation": data.get("designation") or "",
+	}
+	
+	# Add phone numbers
+	if data.get("mobile"):
+		contact_data["phone_nos"] = [{"phone": data.get("mobile"), "is_primary_phone": 1}]
+	if data.get("phone"):
+		if "phone_nos" not in contact_data:
+			contact_data["phone_nos"] = []
+		contact_data["phone_nos"].append({"phone": data.get("phone"), "is_primary_phone": 0})
+	if data.get("whatsapp"):
+		if "phone_nos" not in contact_data:
+			contact_data["phone_nos"] = []
+		contact_data["phone_nos"].append({"phone": data.get("whatsapp"), "is_primary_phone": 0})
+	
+	# Add email
+	if data.get("email"):
+		contact_data["email_ids"] = [{"email_id": data.get("email"), "is_primary": 1}]
+	if data.get("email2"):
+		if "email_ids" not in contact_data:
+			contact_data["email_ids"] = []
+		contact_data["email_ids"].append({"email_id": data.get("email2"), "is_primary": 0})
+	
+	# Create contact and link to customer
+	if contact_data.get("phone_nos") or contact_data.get("email_ids"):
+		try:
+			contact_doc = frappe.get_doc(contact_data)
+			contact_doc.flags.ignore_mandatory = True
+			contact_doc.insert(ignore_permissions=True)
+			# Link contact to customer
+			contact_doc.append("links", {
+				"link_doctype": "Customer",
+				"link_name": doc.name
+			})
+			contact_doc.save(ignore_permissions=True)
+		except Exception as e:
+			frappe.logger().warning(f"[AI] Could not create contact for customer {doc.name}: {e}")
+	
+	# Create address if address info present
+	address_data = {
+		"doctype": "Address",
+		"address_title": data.get("company_name") or customer_name,
+		"address_line1": data.get("address_line1") or "",
+		"address_line2": data.get("address_line2") or "",
+		"city": data.get("city") or "",
+		"state": data.get("state") or "",
+		"pincode": data.get("pincode") or "",
+		"country": data.get("country") or "India",
+		"phone": data.get("mobile") or data.get("phone") or "",
+		"email_id": data.get("email") or "",
+	}
+	
+	# Only create address if at least city or address_line1 is present
+	if data.get("address_line1") or data.get("city"):
+		try:
+			address_doc = frappe.get_doc(address_data)
+			address_doc.flags.ignore_mandatory = True
+			address_doc.insert(ignore_permissions=True)
+			# Link address to customer
+			address_doc.append("links", {
+				"link_doctype": "Customer",
+				"link_name": doc.name
+			})
+			address_doc.save(ignore_permissions=True)
+		except Exception as e:
+			frappe.logger().warning(f"[AI] Could not create address for customer {doc.name}: {e}")
+	
+	frappe.db.commit()
+	
+	# Build summary of extracted info
+	extracted_info = []
+	if data.get("mobile"): extracted_info.append(f"📱 {data.get('mobile')}")
+	if data.get("email"): extracted_info.append(f"📧 {data.get('email')}")
+	if data.get("company_name"): extracted_info.append(f"🏢 {data.get('company_name')}")
+	if data.get("designation"): extracted_info.append(f"💼 {data.get('designation')}")
+	
+	info_summary = " | ".join(extracted_info) if extracted_info else ""
+	
+	return {
+		"type": "text",
+		"success": True,
+		"name": doc.name,
+		"doctype": "Customer",
+		"message": f'✅ Customer created from visiting card: <a href="/app/customer/{doc.name}"><b>{doc.name}</b></a>' + (f'<br><small>{info_summary}</small>' if info_summary else '')
+	}
+
+
 _CREATORS = {
 	"Sales Invoice": _create_sales_invoice,
 	"Purchase Invoice": _create_purchase_invoice,
@@ -408,6 +548,7 @@ _CREATORS = {
 	"Customer": _create_customer,
 	"Supplier": _create_supplier,
 	"Item": _create_item,
+	"Visiting Card": _create_customer_from_visiting_card,
 }
 
 def create_document_from_extraction(doctype, extracted_data):

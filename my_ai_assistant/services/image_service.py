@@ -19,10 +19,13 @@ DOCUMENT_TYPE_MAP = {
 	"purchase order": "Purchase Order", "po": "Purchase Order", "vendor order": "Purchase Order",
 	"quotation": "Quotation", "quote": "Quotation", "rfq": "Quotation",
 	"estimate": "Quotation", "proposal": "Quotation",
+	"visiting card": "Visiting Card", "business card": "Visiting Card",
+	"visitingcard": "Visiting Card", "businesscard": "Visiting Card",
+	"card": "Visiting Card", "vcard": "Visiting Card",
 }
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 SUPPORTED_PDF_TYPE = "application/pdf"
-VALID_DOCTYPES = {"Sales Invoice", "Purchase Invoice", "Sales Order", "Purchase Order", "Quotation"}
+VALID_DOCTYPES = {"Sales Invoice", "Purchase Invoice", "Sales Order", "Purchase Order", "Quotation", "Visiting Card"}
 
 _DETECT_TYPE_PROMPT = """You are a business document classification expert.
 Examine this document and identify what type it is.
@@ -32,17 +35,21 @@ Purchase Invoice
 Sales Order
 Purchase Order
 Quotation
+Visiting Card
 
 Classification Rules (apply in order):
-1. Heading says PURCHASE ORDER or PO- → Purchase Order
-2. Heading says SALES ORDER or SO- or Order Confirmation → Sales Order  
-3. Heading says QUOTATION or QUOTE or ESTIMATE or PROPOSAL → Quotation
-4. Heading contains PURCHASE or shows "BILL FROM" vendor/supplier → Purchase Invoice
-5. Heading contains SALES or shows "BILL TO" customer → Sales Invoice
-6. You are receiving this FROM a vendor/supplier → Purchase Invoice
-7. You are issuing this TO a customer → Sales Invoice
+1. Small rectangular card with person name, company logo, contact info → Visiting Card
+2. Heading says PURCHASE ORDER or PO- → Purchase Order
+3. Heading says SALES ORDER or SO- or Order Confirmation → Sales Order  
+4. Heading says QUOTATION or QUOTE or ESTIMATE or PROPOSAL → Quotation
+5. Heading contains PURCHASE or shows "BILL FROM" vendor/supplier → Purchase Invoice
+6. Heading contains SALES or shows "BILL TO" customer → Sales Invoice
+7. You are receiving this FROM a vendor/supplier → Purchase Invoice
+8. You are issuing this TO a customer → Sales Invoice
 
-IMPORTANT: If document shows "PURCHASE" anywhere in header/title, it is Purchase Invoice, NOT Sales Invoice."""
+IMPORTANT: 
+- If document shows "PURCHASE" anywhere in header/title, it is Purchase Invoice, NOT Sales Invoice.
+- Visiting cards are small cards with contact info, NOT invoices or orders."""
 
 _ITEMS = '  "items": [{"item_name": "string", "description": "string or null", "qty": 0, "rate": 0, "amount": 0, "uom": "Nos"}]'
 _TAXES = '  "taxes": [{"description": "string", "rate": 0, "amount": 0}]'
@@ -132,6 +139,42 @@ IMPORTANT: For "party_name", extract ONLY the person/company NAME (2-4 words max
   "currency": "INR",
   "remarks": null
 }}''',
+	"Visiting Card": '''Extract this Visiting Card/Business Card into JSON. Return ONLY raw JSON, no markdown.
+
+Extract ALL available information from the card including:
+- Person's name (first_name, last_name if separate)
+- Company/Organization name
+- Job title/Designation
+- All phone numbers (mobile, office, direct, whatsapp)
+- All email addresses
+- Complete address (street, city, state, pincode, country)
+- Website URL
+- GSTIN if present
+- Social media handles (LinkedIn, Twitter, etc.)
+
+{{
+  "first_name": "Person's first name or null",
+  "last_name": "Person's last name or null",
+  "full_name": "Complete person name",
+  "company_name": "Company/Organization name",
+  "designation": "Job title/Position or null",
+  "mobile": "Mobile phone number or null",
+  "phone": "Landline/Office phone or null",
+  "whatsapp": "WhatsApp number or null",
+  "email": "Primary email address or null",
+  "email2": "Secondary email or null",
+  "website": "Website URL or null",
+  "address_line1": "Street address line 1 or null",
+  "address_line2": "Street address line 2 or null",
+  "city": "City name or null",
+  "state": "State name or null",
+  "pincode": "Postal/PIN code or null",
+  "country": "Country name or null",
+  "gstin": "GSTIN number if present or null",
+  "linkedin": "LinkedIn profile or null",
+  "twitter": "Twitter handle or null",
+  "remarks": "Any additional notes from the card"
+}}''',
 }
 
 def _resolve_hint(document_type):
@@ -211,6 +254,7 @@ def _ai_detect_doc_type(image_bytes, mime_type, settings):
 		if doctype.lower() == raw.lower():
 			return doctype
 	r = raw.lower()
+	if "visiting card" in r or "business card" in r or "card" in r: return "Visiting Card"
 	if "purchase order" in r: return "Purchase Order"
 	if "purchase invoice" in r or "vendor bill" in r: return "Purchase Invoice"
 	if "sales order" in r: return "Sales Order"

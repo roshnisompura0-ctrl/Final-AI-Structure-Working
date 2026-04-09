@@ -660,3 +660,71 @@
     background: var(--ai-success);
     animation: ai-blink 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   Camera capture modal styles
+   ============================================================ */
+
+/* ── Camera modal overlay ──────────────────────────────────── */
+#ai-camera-modal {
+    font-family: var(--ai-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+#ai-camera-box {
+    color: var(--ai-text, #374151);
+}
+
+/* ── Video stream ────────────────────────────────────────────── */
+#ai-cam-video {
+    display: block;
+    background: #111;
+}
+
+#ai-cam-video.mirrored {
+    transform: scaleX(-1);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+#ai-cam-open-camera:hover  { background: #4a5ed4 !important; }
+#ai-cam-snap:hover         { background: #3d9140 !important; }
+#ai-cam-send:hover         { background: #4a5ed4 !important; }
+#ai-cam-retake:hover,
+#ai-cam-switch:hover       { background: #f3f4f6 !important; }
+
+/* ── Camera & upload buttons in chat input row ────────────────── */
+[data-ai-camera]:hover,
+[data-ai-upload]:hover {
+    transform: scale(1.1) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Status spinner ──────────────────────────────────────────── */
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Responsive: full-screen modal on small screens ──────────── */
+@media (max-width: 600px) {
+    #ai-camera-box {
+        width: 100% !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        min-height: 100vh;
+    }
+    #ai-camera-modal {
+        align-items: flex-start !important;
+    }
+}
+
+/* ── Dark mode compatibility for camera modal ──────────────────── */
+@media (prefers-color-scheme: dark) {
+    #ai-camera-box {
+        background: #1e1e1e !important;
+        color: #e0e0e0 !important;
+    }
+    #ai-cam-retake,
+    #ai-cam-switch {
+        border-color: #444 !important;
+        color: #e0e0e0 !important;
+    }
+}
